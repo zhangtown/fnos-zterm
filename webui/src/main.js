@@ -12,29 +12,10 @@ import "@xterm/xterm/css/xterm.css";
 import "./style.css";
 import { api, wsURL, toast, copyText, fmtSize, timeAgo, uptime } from "./api.js";
 import { MONO, THEME_DARK, THEME_LIGHT } from "./theme.js";
+import { S } from "./state.js";
+import { initCmds, showRail } from "./commands.js";
 
 const $ = (id) => document.getElementById(id);
-
-const S = {
-  config: {},
-  system: {},
-  settings: {},
-  sessions: [],
-  profiles: [],
-  cur: null, // 当前接入的会话 id
-  term: null,
-  fit: null,
-  ws: null,
-  wsState: "idle", // idle | connecting | open | closing
-  retry: 0,
-  retryTimer: null,
-  pingTimer: null,
-  wantClose: false,
-  pending: [], // 断线期间用户敲的键，连上后补发
-  pendingBytes: 0,
-  lastSize: "",
-  fatal: false,
-};
 
 /* ---------------- 启动 ---------------- */
 
@@ -64,6 +45,25 @@ async function init() {
   }
   renderBook();
   wireDynamicUI();
+
+  // 命令簿：它自己不碰终端，靠这两个回调把命令交给当前会话
+  initCmds({
+    onFill(line) {
+      const sess = S.sessions.find((s) => s.id === S.cur);
+      if (!sess) {
+        toast("先建一个会话，命令要发到终端里", true);
+        return;
+      }
+      if (S.wsState !== "open") toast("连接还没就绪，命令已经攒着，重连后自动发出", true);
+      sendInput(line);
+      if (S.term) S.term.focus();
+      if (window.matchMedia("(max-width: 860px)").matches) showRail("sessions");
+    },
+    onRun(line) {
+      sendInput(line + "\r");
+      if (S.term) S.term.focus();
+    },
+  });
 
   const last = localStorage.getItem("zterm.last");
   if (last && S.sessions.some((s) => s.id === last)) {
@@ -735,6 +735,7 @@ function openSettings() {
   $("s-blink").checked = S.settings.cursorBlink !== false;
   $("s-cwd").value = S.settings.defaultCwd || "/";
   if (S.settings.defaultShell) $("s-shell").value = S.settings.defaultShell;
+  $("s-runmode").value = S.settings.cmdRunMode === "run" ? "run" : "fill";
   $("s-hint").textContent =
     `会话上限 ${S.config.maxSessions || 8} 个/账号 · 滚动历史 512 KB/会话 · 数据目录 ${S.config.dataDirForUser || "-"}` +
     " · 快捷键：Alt+Shift+T 新建、Alt+Shift+W 结束、Alt+Shift+K 清屏、Alt+Shift+↑/↓ 切换、Ctrl+Shift+C/V 复制粘贴";
@@ -749,6 +750,7 @@ async function saveSettings() {
     cursorBlink: $("s-blink").checked,
     defaultShell: $("s-shell").value,
     defaultCwd: $("s-cwd").value.trim() || "/",
+    cmdRunMode: $("s-runmode").value === "run" ? "run" : "fill",
   };
   try {
     S.settings = await api("api/settings", { method: "POST", body: payload });

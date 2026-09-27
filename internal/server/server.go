@@ -24,6 +24,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"zterm/internal/auth"
+	"zterm/internal/commands"
 	"zterm/internal/profiles"
 	"zterm/internal/session"
 )
@@ -46,6 +47,7 @@ type Server struct {
 	cfg    Config
 	mgr    *session.Manager
 	store  *profiles.Store
+	cmds   *commands.Store
 	ui     *staticFiles
 	http   *http.Server
 	start  time.Time
@@ -74,6 +76,7 @@ func New(cfg Config) (*Server, error) {
 		cfg:   cfg,
 		mgr:   session.NewManager(512),
 		store: profiles.NewStore(cfg.DataDir + "/users"),
+		cmds:  commands.NewStore(cfg.DataDir + "/users"),
 		ui:    ui,
 		start: time.Now(),
 		upgrade: websocket.Upgrader{
@@ -105,6 +108,18 @@ func New(cfg Config) (*Server, error) {
 
 	mux.HandleFunc("GET /api/settings", s.guard(s.handleSettingsGet))
 	mux.HandleFunc("POST /api/settings", s.guard(s.handleSettingsSave))
+
+	// 命令簿：内置库在二进制里（internal/commands），用户只存"隐藏了哪些 + 自己加了哪些"。
+	// 点一条命令默认只填进终端（走 WS）；"危险命令直接执行"走 POST /api/commands/run，
+	// 那条路要求管理员 + 二次确认 + 参数白名单校验。
+	mux.HandleFunc("GET /api/commands", s.guard(s.handleCommandsList))
+	mux.HandleFunc("POST /api/commands", s.guard(s.handleCommandsUpsert))
+	mux.HandleFunc("DELETE /api/commands/{id}", s.guard(s.handleCommandsDelete))
+	mux.HandleFunc("POST /api/commands/{id}/hide", s.guard(s.handleCommandsHide))
+	mux.HandleFunc("POST /api/commands/{id}/use", s.guard(s.handleCommandsUse))
+	mux.HandleFunc("GET /api/commands/candidates", s.guard(s.handleCommandsCandidates))
+	mux.HandleFunc("POST /api/commands/reset", s.guard(s.handleCommandsReset))
+	mux.HandleFunc("POST /api/commands/run", s.guard(s.handleCommandsRun))
 
 	mux.Handle("/", ui)
 
@@ -608,6 +623,158 @@ func (s *Server) handleSettingsSave(w http.ResponseWriter, r *http.Request, id a
 		return
 	}
 	writeJSON(w, http.StatusOK, saved)
+}
+
+// ---------- 命令簿 ----------
+
+// 命令都是 root 权限跑的，所以读写一律要求管理员身份（不只看应用自己的策略）。
+func (s *Server) commandsRequest(w http.ResponseWriter, r *http.Request, id auth.Identity) bool {
+	if err := auth.RequireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err.Error())
+		return false
+	}
+	return true
+}
+
+func (s *Server) handleCommandsList(w http.ResponseWriter, _ *http.Request, id auth.Identity) {
+	writeJSON(w, http.StatusOK, s.cmds.Commands(id.SafeUID()))
+}
+
+func (s *Server) handleCommandsUpsert(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	var it commands.Item
+	if err := decodeJSON(r, &it); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if strings.TrimSpace(it.Cmd) == "" {
+		writeErr(w, http.StatusBadRequest, "命令内容不能为空")
+		return
+	}
+	resp, err := s.cmds.Upsert(id.SafeUID(), it)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCommandsDelete 内置条目 → 隐藏（可恢复）；自己加的 → 真删。
+func (s *Server) handleCommandsDelete(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	resp, err := s.cmds.Delete(id.SafeUID(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCommandsHide 隐藏 / 恢复一个内置条目（恢复出厂后想再藏一次也走这里）。
+func (s *Server) handleCommandsHide(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	var req struct {
+		Hidden bool `json:"hidden"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	resp, err := s.cmds.Hide(id.SafeUID(), r.PathValue("id"), !req.Hidden)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCommandsUse 记一次使用（只影响排序，不改命令）。
+func (s *Server) handleCommandsUse(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	resp, err := s.cmds.Use(id.SafeUID(), r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCommandsReset 恢复出厂：清掉"隐藏"与使用记录，自己加的命令保留。
+func (s *Server) handleCommandsReset(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	resp, err := s.cmds.Reset(id.SafeUID())
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCommandsCandidates 占位符候选值（容器名、服务名、目录…），当场在本机查。
+func (s *Server) handleCommandsCandidates(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	kind := r.URL.Query().Get("kind")
+	writeJSON(w, http.StatusOK, map[string]any{
+		"kind":    kind,
+		"options": commands.Candidates(kind),
+	})
+}
+
+// handleCommandsRun 把一条命令直接写进指定会话（只有用户明确选"直接执行"时前端才调）。
+//
+// 安全：命令不从前端原样收（否则这就是个"以 root 执行任意命令"的接口），
+// 只收 {条目 id + 参数}，由服务端用内置模板重新拼；危险命令还要求 confirm=true。
+func (s *Server) handleCommandsRun(w http.ResponseWriter, r *http.Request, id auth.Identity) {
+	if !s.commandsRequest(w, r, id) {
+		return
+	}
+	var req struct {
+		ID        string            `json:"id"`
+		SessionID string            `json:"sessionId"`
+		Params    map[string]string `json:"params"`
+		Confirm   bool              `json:"confirm"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	item, ok := s.cmds.Commands(id.SafeUID()).Lookup(req.ID)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "命令簿里没有这条命令")
+		return
+	}
+	if item.Danger && !req.Confirm {
+		writeErr(w, http.StatusPreconditionRequired, "这条命令有风险，需要先确认")
+		return
+	}
+	line, err := commands.Render(item, req.Params)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	sess, ok := s.mgr.Get(id.SafeUID(), req.SessionID)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "会话不存在")
+		return
+	}
+	if err := sess.Write([]byte(line + "\r")); err != nil {
+		writeErr(w, http.StatusInternalServerError, "写入终端失败: "+err.Error())
+		return
+	}
+	_, _ = s.cmds.Use(id.SafeUID(), item.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "cmd": line})
 }
 
 // ctxOriginalPath 保存请求到达时的原始路径（剥离应用前缀之前）。

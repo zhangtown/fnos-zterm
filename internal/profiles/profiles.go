@@ -39,6 +39,8 @@ type Settings struct {
 	Theme        string `json:"theme,omitempty"` // dark | light
 	CursorBlink  *bool  `json:"cursorBlink,omitempty"`
 	ScrollbackKB int    `json:"scrollbackKB,omitempty"`
+	// CmdRunMode：命令簿里点一条命令时的手感。fill=只填进终端（默认，最安全）；run=直接回车执行。
+	CmdRunMode string `json:"cmdRunMode,omitempty"`
 }
 
 // DefaultSettings 返回一份可用的默认值。
@@ -50,6 +52,7 @@ func DefaultSettings() Settings {
 		FontSize:     14,
 		Theme:        "dark",
 		CursorBlink:  &blink,
+		CmdRunMode:   "fill",
 	}
 }
 
@@ -287,6 +290,9 @@ func (s *Store) SaveSettings(uid string, st Settings) (Settings, error) {
 	}
 	if st.ScrollbackKB >= 64 && st.ScrollbackKB <= 8192 {
 		cur.ScrollbackKB = st.ScrollbackKB
+	}
+	if st.CmdRunMode == "fill" || st.CmdRunMode == "run" {
+		cur.CmdRunMode = st.CmdRunMode
 	}
 	if err := writeJSON(filepath.Join(d, "settings.json"), cur); err != nil {
 		return cur, err

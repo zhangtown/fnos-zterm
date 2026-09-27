@@ -110,6 +110,20 @@ var (
 	warnNever sync.Once
 )
 
+// RequireAdmin 用于"任何策略下都必须是管理员"的场景：
+// 改网络配置、装应用、替用户直接执行危险命令这类一旦被普通用户触发就会影响整机或别人的操作。
+// 与 CheckAdmin 的区别：soft 模式下 CheckAdmin 在缺少管理员标记时会放行，这里不会。
+func RequireAdmin(r *http.Request) error {
+	id := Identify(r)
+	if id.AdminClaim == "" {
+		return errors.New("无法确认管理员身份（请求里缺少网关的管理员标记）")
+	}
+	if !id.IsAdmin {
+		return ErrNotAdmin
+	}
+	return nil
+}
+
 // CheckAdmin 按当前策略判断请求是否可以继续。
 func CheckAdmin(r *http.Request) error {
 	mode := AdminMode()

@@ -10,8 +10,8 @@
     <base href="__ZTERM_BASE__" />
     <title>终端 · zterm</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
-    <script type="module" crossorigin src="./assets/index-g29rzgX0.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-BuRbqhty.css">
+    <script type="module" crossorigin src="./assets/index-Ce0P73bG.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DvEvec6f.css">
   </head>
   <body>
     <div class="app">
@@ -32,6 +32,13 @@
             <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10"/></svg>
             新建会话
           </button>
+          <button class="btn" id="btn-cmds">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M3.2 3.2h7.2c.7 0 1.2.5 1.2 1.2v7.4c0 .7-.5 1.2-1.2 1.2H4.2c-.5 0-.9-.4-.9-.9V3.2z"/>
+              <path d="M5 5.8h4M5 8h4M5 10.2h2.4"/>
+            </svg>
+            命令簿
+          </button>
           <button class="btn" id="btn-book">
             <svg class="i" viewBox="0 0 16 16" aria-hidden="true">
               <path d="M2.6 12.4V3.6c0-.5.4-.9.9-.9h6.2c.5 0 .9.4.9.9v8.8M2.6 12.4c0 .5.4.9.9.9h9" />
@@ -50,11 +57,30 @@
       </header>
 
       <aside class="rail">
-        <div class="railhead">
-          <span>会话</span>
-          <span class="badge" id="count">0</span>
+        <div class="railtabs" role="tablist">
+          <button type="button" class="rtab on" data-rail="sessions" role="tab">
+            会话 <span class="badge" id="count">0</span>
+          </button>
+          <button type="button" class="rtab" data-rail="cmds" role="tab">命令簿</button>
         </div>
-        <div class="list" id="list"></div>
+
+        <div class="railpane" id="pane-sessions">
+          <div class="list" id="list"></div>
+        </div>
+
+        <div class="railpane" id="pane-cmds" hidden>
+          <div class="cmdtop">
+            <input id="cmd-q" class="cmdq" type="text" placeholder="搜命令：磁盘 / docker / 日志…"
+                   autocomplete="off" spellcheck="false" />
+            <div class="cmdcats" id="cmd-cats"></div>
+          </div>
+          <div class="list" id="cmd-list"></div>
+          <div class="cmdfoot">
+            <button class="btn btn-mini" id="btn-cmd-add">＋ 加一条</button>
+            <button class="btn btn-mini" id="btn-cmd-restore" title="把藏起来的内置命令恢复出来">恢复内置</button>
+          </div>
+        </div>
+
         <div class="railfoot">
           <span class="dot" id="healthdot" data-state="connecting"></span>
           <span id="healthtext">正在连接…</span>
@@ -285,6 +311,13 @@
             <input id="s-cwd" type="text" spellcheck="false" autocomplete="off" />
           </label>
           <p class="hint" id="s-hint"></p>
+          <label class="field">
+            <span>命令簿：点一条命令时</span>
+            <select id="s-runmode">
+              <option value="fill">只填进终端，我自己按回车</option>
+              <option value="run">直接执行（危险的仍会先问）</option>
+            </select>
+          </label>
         </div>
         <div class="dlgfoot">
           <span class="footnote" id="set-note"></span>
@@ -313,6 +346,95 @@
         <div class="dlgfoot">
           <button class="btn" value="cancel">取消</button>
           <button class="btn btn-primary" id="btn-paste-send" value="ok">发送</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 命令簿：填参数 —— 命令里写 {容器} 这种占位符时弹它 -->
+    <dialog class="dlg" id="dlg-cmduse">
+      <form method="dialog" class="dlgform" id="form-cmduse">
+        <div class="dlghead">
+          <h2 id="cu-title">填参数</h2>
+          <button class="iconbtn close" value="cancel" aria-label="关闭">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" /></svg>
+          </button>
+        </div>
+        <div class="dlgbody">
+          <p class="hint" id="cu-desc"></p>
+          <div id="cu-fields"></div>
+          <div class="cmdprev">
+            <span class="cmdprevlabel">将要执行</span>
+            <code id="cu-preview"></code>
+          </div>
+          <p class="hint" id="cu-note"></p>
+        </div>
+        <div class="dlgfoot">
+          <button class="btn" value="cancel">取消</button>
+          <button class="btn" id="btn-cu-copy" value="none" title="照样存成我自己的命令，之后可改">存成我的</button>
+          <button class="btn" id="btn-cu-run" value="ok">直接执行</button>
+          <button class="btn btn-primary" id="btn-cu-fill" value="fill">填进终端</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 命令簿：新增 / 修改自己的命令 -->
+    <dialog class="dlg" id="dlg-cmdadd">
+      <form method="dialog" class="dlgform" id="form-cmdadd">
+        <div class="dlghead">
+          <h2 id="ca-title">加一条命令</h2>
+          <button class="iconbtn close" value="cancel" aria-label="关闭">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" /></svg>
+          </button>
+        </div>
+        <div class="dlgbody">
+          <label class="field">
+            <span>名称（你以后靠它认这条命令）</span>
+            <input id="ca-name" type="text" spellcheck="false" autocomplete="off" placeholder="例：看今天谁登录过" />
+          </label>
+          <label class="field">
+            <span>命令</span>
+            <textarea id="ca-cmd" rows="3" spellcheck="false" placeholder="例：last -n 20"></textarea>
+          </label>
+          <div class="row2">
+            <label class="field grow">
+              <span>分类</span>
+              <select id="ca-cat"></select>
+            </label>
+            <label class="field grow">
+              <span>说明（可选）</span>
+              <input id="ca-note" type="text" spellcheck="false" autocomplete="off" />
+            </label>
+          </div>
+          <p class="hint">
+            命令里可以写 <code>{容器}</code> <code>{目录}</code> 这种占位符，点它的时候会先让你填。
+          </p>
+          <p class="hint" id="ca-warn" hidden></p>
+          <input type="hidden" id="ca-id" />
+        </div>
+        <div class="dlgfoot">
+          <span class="footnote" id="ca-foot"></span>
+          <button class="btn" value="cancel">取消</button>
+          <button class="btn btn-primary" id="btn-ca-save" value="save">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- 通用确认（危险命令、删除等） -->
+    <dialog class="dlg dlg-narrow" id="dlg-ok">
+      <form method="dialog" class="dlgform" id="form-ok">
+        <div class="dlghead">
+          <h2 id="ok-title">确认</h2>
+          <button class="iconbtn close" value="cancel" aria-label="关闭">
+            <svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.2 4.2l7.6 7.6M11.8 4.2l-7.6 7.6" /></svg>
+          </button>
+        </div>
+        <div class="dlgbody">
+          <p class="hint" id="ok-text"></p>
+          <pre class="cmdprev danger" id="ok-cmd" hidden></pre>
+        </div>
+        <div class="dlgfoot">
+          <button class="btn" value="cancel">取消</button>
+          <button class="btn btn-danger" id="btn-ok-yes" value="ok">确认</button>
         </div>
       </form>
     </dialog>

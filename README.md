@@ -17,6 +17,7 @@
 | **滚动历史** | 服务端保留每个会话 512KB 输出，重连时**整屏恢复**，不是从空白开始。 |
 | **多会话** | 左侧列表管理多个会话：新建、切换、重命名、删除；每账号最多 8 个并发。 |
 | **远程 SSH** | 内置主机簿，存用户名/端口/附加参数，一键拨过去。**不存密码和私钥**，交互交给 `ssh` 自己。 |
+| **命令簿** | 140+ 条常用 Linux/飞牛运维命令，**中文标题 + 可一键跑**，不用背命令。带搜索、分类、危险确认；`{容器}` `{目录}` 这种空会列出本机候选值给你选。 |
 | **尺寸联动** | 窗口/侧栏变化自动 `SIGWINCH`，`vim`、`htop`、`less`、`top` 会跟着窗口调整。 |
 | **复制粘贴** | 选中即复制或 `Ctrl+Shift+C`；粘贴走确认框，多行粘贴可"粘完即回车"。 |
 | **好用的终端** | xterm.js：真彩色、URL 可点、5000 行本地回滚、字号调节、光标闪烁开关。 |
@@ -136,7 +137,56 @@ bash deploy/fnos-app/install.sh
 
 ### 5. 设置
 
-侧栏 **设置**：默认 shell、默认工作目录、字号、光标闪烁、主题（深/浅）。按账号保存，换设备也在。
+侧栏 **设置**：默认 shell、默认工作目录、字号、光标闪烁、主题（深/浅）、命令簿点击行为。按账号保存，换设备也在。
+
+### 6. 用命令簿（不熟 Linux 就看这段）
+
+左侧栏第二个页签「**命令簿**」（或右上角「命令簿」按钮），里面是分好类的常用运维命令，每条都是**中文标题 + 完整命令**。
+
+**基本用法：**
+
+1. 想干什么就搜什么：输入「日志」「磁盘」「docker」「大文件」，支持中文与英文
+2. 点一条 → 命令被**填进终端，但不会自动执行**（默认行为）
+3. 你自己看一眼，没问题按 `回车`。看懂一条算一条，慢慢就熟了。
+
+想更快也行：设置里把「点命令时」改成「直接执行」；或者对单条命令点它的 ▶ 按钮（每条都带一个）。
+**危险命令无论哪种设置都会先弹确认框**（`rm -rf`、`mkfs`、`dd`、`systemctl stop`、`shutdown`……）。
+
+**带空要填的命令**（命令里有 `{}`）：点击后会弹小框让你填，能填的都能**下拉选**，不用自己记：
+
+| 空 | 候选值从哪来 | 例 |
+| --- | --- | --- |
+| `{容器}` | 本机正在跑的容器 | `docker logs -f {容器}` |
+| `{服务}` | systemd 服务名 | `systemctl status {服务}` |
+| `{应用}` | 应用中心里的应用 | 看某个应用的日志 |
+| `{目录}` | 存储卷 / 共享文件夹 / 一层子目录 | `du -sh {目录}/*` |
+| `{用户}` `{端口}` `{镜像}` `{卷}` | 本机现有的 | |
+
+小框里会实时显示 **「将要执行」的那行完整命令**，并挡住 `;` `&` `|` `` ` `` `$` 这类能"改意思"的字符。
+
+**常用分组**：用过的命令会自动排到最上面（最多 6 条），天天用的不用再搜。
+**危险操作分组**：默认收起，展开一次就一直展开。
+**自己的命令**：「＋ 加一条」写自己的；内置命令不能改但能「**存成我的**」之后再改，或者「**藏起来**」（点「恢复内置」随时找回）。
+
+命令都跑在**当前选中的会话**里，所以先在左边选一个会话（或新建一个），再点命令。
+命令簿是按账号存的，每个人各一份。
+
+**里面有什么（举个例，共 12 类）**
+
+| 分类 | 条目标题举例 |
+| --- | --- |
+| 系统信息与负载 | `飞牛系统版本 + 内核版本`、`吃 CPU 前 10 名`、`温度（CPU / NVMe）`、`实时负载每秒一行` |
+| 磁盘与空间 | `各存储卷用量`、`这个卷里哪个一级目录最占空间`、`揪出 1G 以上的大文件`、`所有硬盘健康概览`、`RAID 阵列状态` |
+| 文件与目录 | `列目录（含隐藏文件）`、`按文件名/内容找`、`这个目录多大`、`复制/移动/建软链接` |
+| 进程与服务 | `按关键词找进程`、`服务状态（上次为啥退出）`、`正在运行的服务清单`、`有没有僵尸进程` |
+| 网络与端口 | `本机 IP / 网卡状态`、`监听中的端口（含进程名）`、`这个端口是谁在用`、`连通性测试` |
+| Docker | `容器一览`、`进入容器`、`跟着看日志`、`compose 上下线`、`镜像列表` |
+| 飞牛 OS 专属 | 飞牛服务状态、应用中心、存储卷/共享文件夹、内置服务日志 |
+| 日志排查 | `最新系统日志`、`只看错误`、`上次启动为什么重启`、`按关键词搜日志` |
+| 压缩与备份 | `打包成 tar.gz`、`解包`、`rsync 同步`、`校验包完整性` |
+| 用户与权限 | `用户/组列表`、`改属主`、`改权限（分值写法）`、`最近登录记录` |
+| 危险操作（默认收起） | 重启、关机、停服务、RM 删除、磁盘操作 —— 全都标红 + 执行前确认 |
+| 我加的 | 你自己的命令（可填空、可编辑、可删） |
 
 ---
 
@@ -158,6 +208,11 @@ bash deploy/fnos-app/install.sh
 
 **能连数据库/串口/其它 NAS 吗？**
 能，只要在 shell 里敲得出命令。SSH 只是把 `ssh` 命令做成了一键入口。
+
+**命令簿里的命令跑不动／招不对？**
+内置命令是按飞牛的 Debian 基础系统实测过的（其中一部分做了"命令不存在就回退"的处理），
+但容器/服务名/存储路径这些东西每台机器不一样 —— 所以带空的地方都能下拉选本机实际值。
+命令执行后回显报错时，直接搜关键词找下一条就行了；也可以「存成我的」把它改成合你机器的版本。
 
 **终端的字太小/太大？**
 设置里调字号；移动端建议横屏。
@@ -201,7 +256,14 @@ bash deploy/fnos-app/install.sh
 | PATCH/DELETE | `/api/sessions/{id}` | 重命名 / 删除 |
 | GET | `/api/sessions/{id}/ws` | WebSocket：二进制帧=PTY 输出，文本帧=控制/退出事件 |
 | GET/POST | `/api/profiles` | 主机簿 |
-| GET/POST | `/api/settings` | 界面设置 |
+| GET/POST | `/api/settings` | 界面设置（含命令簿点击行为 `cmdRunMode`） |
+| GET/POST | `/api/commands` | 命令簿：列表 / 新增或修改自己的命令 |
+| DELETE | `/api/commands/{id}` | 删自己的条目；内置条目则是"藏起来" |
+| POST | `/api/commands/{id}/hide` | `{"hidden":true}` 隐藏内置 / `false` 恢复 |
+| POST | `/api/commands/{id}/use` | 记一次使用（只影响排序） |
+| POST | `/api/commands/reset` | 恢复内置（清隐藏 + 清使用记录，不动自己加的） |
+| GET | `/api/commands/candidates?kind=` | 占位符候选值（container/service/app/volume/dir/user/port/image） |
+| POST | `/api/commands/run` | 把某条命令直接写进某个会话（危险命令要 `confirm:true`） |
 | GET | `/api/system` | 主机名、负载、内存、磁盘等侧栏信息 |
 
 WebSocket（客户端→服务端，文本帧）：
@@ -242,6 +304,10 @@ WebSocket（客户端→服务端，文本帧）：
 #                          → resize → 断开重连拿回历史 → 删会话
 ssh user@your-nas 'python3 -' < deploy/fnos-app/e2e-ws.py
 
+# 命令簿自检：15 项（列表/分类/候选值/参数防注入/危险确认/真执行并回读到文件/隐藏与恢复/权限）
+scp deploy/fnos-app/cmdbook-selftest.sh user@your-nas:/tmp/ && \
+  ssh user@your-nas 'bash /tmp/cmdbook-selftest.sh'
+
 # 状态与手动探活
 sudo /usr/local/bin/appcenter-cli status zterm      # running / stopped
 ssh user@your-nas 'curl -s --unix-socket /var/apps/zterm/target/app.sock http://localhost/api/health'
@@ -257,6 +323,8 @@ ssh user@your-nas 'curl -s -H X-Trim-Isadmin:true --unix-socket /var/apps/zterm/
 | 界面出来了但接口全 403 | 网关没透传身份头，或被普通账号打开 → 看 `/app/zterm/api/whoami` 的 `adminSrc` 是否为空 |
 | 会话一刷新就没了 | 后端在重启（升级/停止会结束全部会话）→ 看 lifecycle 日志的启动时间 |
 | 粘贴不进去 / 手机没方向键 | 桌面端用 `Ctrl+Shift+V` 或右键；手机用底部按键条 |
+| 命令簿点不动 / 提示先建会话 | 命令要发到会话里：先在左侧选一个会话或新建一个 |
+| 命令簿里某条命令报错 | 正常：不同机器上服务名/路径会不一样 → 用带下拉候选的命令，或「存成我的」改成本机版本 |
 
 ---
 
@@ -280,14 +348,16 @@ cmd/zterm/main.go            入口：-data / -socket / -addr / -prefix / -versi
 internal/auth/               飞牛身份识别（管理员判定、UID 归一、strict/soft/off）
 internal/session/            PTY 会话管理：创建/保活/滚动历史（环形缓冲）/重放/回收
 internal/profiles/           主机簿与设置落库（按账号分目录）
+internal/commands/           命令簿：内置 140+ 条命令库 + 参数校验 + 本机候选值 + 按账号状态
 internal/server/             HTTP + WebSocket 路由、静态资源、网关前缀剥离
 internal/webui/              前端嵌入（dist 由 vite 输出到这里）
-webui/                       前端源码：index.html / src/{main,api,theme}.js / style.css
+webui/                       前端源码：index.html / src/{main,commands,state,api,theme}.js / style.css
 tools/mkicon/                Go 画图标（浅底玻璃风），输出 ICON.PNG / ICON_256.PNG / app/ui/images/*
 deploy/fnos-app/zterm/       飞牛应用包本体：manifest、cmd/*（生命周期）、config/*、app/ui/*
 deploy/fnos-app/pack.sh      打包（图标 → 前端 → linux/amd64 交叉编译 → .fpk）
 deploy/fnos-app/install.sh   一键部署 + 自检
 deploy/fnos-app/e2e-ws.py    端到端自检（直连 socket，不用浏览器）
+deploy/fnos-app/cmdbook-selftest.sh  命令簿自检（15 项，含"真跑一条命令并回读结果"）
 .github/workflows/release.yml  打 tag 自动构建 fpk 并发 Release
 ```
 
@@ -295,7 +365,7 @@ deploy/fnos-app/e2e-ws.py    端到端自检（直连 socket，不用浏览器�
 
 ```bash
 # tag 即发版：Actions 自动跑 前端构建 → 交叉编译 → fnpack 打包 → 上传 fpk 到 Release
-git tag v0.1.2 && git push origin v0.1.2
+git tag v0.1.3 && git push origin v0.1.3
 ```
 
 版本号**以 tag 为准**（工作流会把 `deploy/fnos-app/zterm/manifest` 改成 tag 的值再打包），

@@ -133,6 +133,198 @@ svg.i {
   border-right: 1px solid var(--hairline);
 }
 
+/* 侧栏顶部两个页签：会话 / 命令簿 */
+.railtabs {
+  display: flex;
+  gap: 2px;
+  margin: 8px 8px 4px;
+  padding: 2px;
+  background: var(--hover);
+  border-radius: var(--r);
+}
+.rtab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-mid);
+  font-size: 12px;
+  cursor: pointer;
+}
+.rtab:hover { color: var(--text); }
+.rtab.on { background: var(--surface); color: var(--text); font-weight: 600; }
+
+.railpane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- 命令簿 ---------- */
+
+.cmdtop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 10px 4px;
+}
+
+.cmdq {
+  width: 100%;
+  min-width: 0;
+}
+
+.cmdcats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-mid);
+  font-size: 11px;
+  cursor: pointer;
+}
+.chip:hover { background: var(--hover); }
+.chip.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--accent); font-weight: 600; }
+
+.cmdgroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  margin: 8px 0 2px;
+  padding: 0 4px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+.cmdgroup .cwarn { margin-left: auto; font-size: 10px; }
+.cmdgroup.collapsible {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: left;
+}
+.cmdgroup.collapsible:hover { color: var(--text); }
+.cmdgroup .caret { width: 10px; }
+
+.cmd {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 7px 6px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--r);
+  cursor: pointer;
+}
+.cmd:hover, .cmd:focus-visible { background: var(--hover); border-color: var(--hairline); }
+.cmd:active { background: var(--pressed); }
+.cmd.danger .cmdtitle::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 50%;
+  background: var(--danger);
+  vertical-align: 1px;
+}
+
+.cmdmain { flex: 1; min-width: 0; }
+.cmdtitle { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmdline {
+  margin-top: 1px;
+  font: 11px/1.45 var(--mono);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cmd:hover .cmdline { color: var(--text-mid); }
+.cmd.danger .cmdline { color: var(--danger); opacity: .78; }
+
+.cmdcat {
+  margin-left: 6px;
+  padding: 0 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.cmdacts { display: flex; gap: 2px; opacity: 0; }
+.cmd:hover .cmdacts, .cmd:focus-within .cmdacts, .cmdacts:focus-within { opacity: 1; }
+.cmdact {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.cmdact:hover { background: var(--surface); color: var(--accent); }
+.cmdact.danger:hover { color: var(--danger); }
+.cmdact .i { width: 14px; height: 14px; }
+
+.cmdnone { padding: 10px; }
+
+.cmdfoot {
+  display: flex;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--hairline);
+}
+.cmdfoot .btn { flex: 1; justify-content: center; }
+.btn-danger {
+  color: #fff;
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.btn-danger:hover { background: var(--danger); box-shadow: inset 0 0 0 32px rgba(0, 0, 0, 0.14); }
+.btn-danger:active { background: var(--danger); box-shadow: inset 0 0 0 32px rgba(0, 0, 0, 0.24); }
+.btn-mini { height: 28px; padding: 0 8px; font-size: 12px; }
+
+.cmdprev {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r);
+  background: var(--disabled-bg);
+}
+.cmdprevlabel { font-size: 11px; color: var(--text-dim); }
+.cmdprev code {
+  font: 12px/1.6 var(--mono);
+  color: var(--text);
+  word-break: break-all;
+  white-space: pre-wrap;
+}
+.cmdprev code.bad { color: var(--danger); }
+pre.cmdprev { margin: 0; white-space: pre-wrap; word-break: break-all; }
+pre.cmdprev.danger { border-color: rgba(213, 56, 46, 0.4); background: rgba(213, 56, 46, 0.06); color: var(--danger); }
+
+#cu-fields { display: flex; flex-direction: column; gap: 10px; }
+.dlg-narrow { width: min(420px, 94vw); }
+
 .railhead {
   display: flex;
   align-items: center;
@@ -610,6 +802,22 @@ select {
   .btn { padding: 0 10px; }
   .rail { border-right: 0; border-bottom: 1px solid var(--hairline); }
   .railhead, .railfoot { display: none; }
+  .railtabs { flex: none; margin: 8px 10px 0; }
+  .railpane { flex: none; }
+  /* 窄屏下命令簿是可滚动的长条，终端留在下面不被挤掉 */
+  #pane-cmds .list {
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    max-height: 42vh;
+    padding: 4px 10px 6px;
+  }
+  .cmdtop { padding: 8px 10px 4px; }
+  .cmdcats { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .cmdcats::-webkit-scrollbar { display: none; }
+  .chip { flex: none; }
+  .cmdfoot { display: none; }
+  .cmdacts { opacity: 1; }
   .list {
     flex-direction: row;
     overflow-x: auto;
