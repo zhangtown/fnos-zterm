@@ -61,16 +61,18 @@ if [ ! -S \"\$SOCK\" ]; then
     [ -S \"\$c\" ] && SOCK=\"\$c\" && break
   done
 fi
+AH=\"-H X-Trim-Isadmin:true -H X-Trim-Userid:1000 -H X-Trim-Username:selfcheck\"
 echo \"  socket:   \$SOCK\"
 echo -n '  已装版本: '; sudo -n /usr/local/bin/appcenter-cli list 2>&1 | awk -F'│' '/[^a-z]zterm[^a-z]/{gsub(/ /,\"\",\$4); print \$4; exit}'
 echo -n '  health:   '; curl -s --unix-socket \"\$SOCK\" http://localhost/api/health; echo
-echo -n '  会话列表: '; curl -s --unix-socket \"\$SOCK\" http://localhost/api/sessions; echo
+echo -n '  会话列表: '; curl -s \$AH --unix-socket \"\$SOCK\" http://localhost/api/sessions; echo
 echo '  静态资源:'
 for u in \$(curl -s --unix-socket \"\$SOCK\" http://localhost/ | grep -oE '(src|href)=\"[^\"]+\"' | sed -E 's/.*=\"([^\"]+)\"/\1/'); do
   case \"\$u\" in http*|'//'*) continue;; esac
   curl -s --unix-socket \"\$SOCK\" -o /dev/null -w \"    \$u -> %{http_code} %{content_type} %{size_download}B\n\" \"http://localhost/\${u#./}\"
 done
-echo -n '  会话信息条数: '; curl -s --unix-socket \"\$SOCK\" http://localhost/api/system | tr ',' '\n' | grep -c . || true"
+echo -n '  会话信息条数: '; curl -s \$AH --unix-socket \"\$SOCK\" http://localhost/api/system | tr ',' '\n' | grep -c . || true
+echo -n '  无身份头拦截: '; curl -s -o /dev/null -w '%{http_code}\n' --unix-socket \"\$SOCK\" http://localhost/api/sessions"
 echo
 echo "== 完成：飞牛桌面打开「zterm」（仅管理员可见）"
 echo "   数据目录: /usr/local/apps/@appdata/zterm/data   （主机簿、设置；升级/卸载都不动）"

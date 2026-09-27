@@ -9,11 +9,11 @@
 #   TRIM_APPDEST       应用程序目录（含 bin/、app.sock）
 #   TRIM_PKGVAR        应用数据目录（跟随卸载策略）
 #   TRIM_TEMP_LOGFILE  应用中心展示给用户看的报错文件
-#   ZTERM_ADMIN_MODE   管理员策略：soft（默认）| strict | off
-#                      soft  = 网关给了管理员标记就必须是管理员，没给则放行（先跑通用这个）
-#                      strict= 必须显式拿到管理员标记，否则 403（核实头名之后再切）
-#                      核实办法：管理员登录飞牛桌面后打开 /app/zterm/api/whoami，
-#                      看回显里到底有没有 X-Trim-Isadmin 这类头。
+#   ZTERM_ADMIN_MODE   管理员策略：strict（默认，本脚本显式写死）| soft | off
+#                      strict= 必须显式拿到管理员标记，否则 403
+#                      已在飞牛 1.2.0701 上核实：网关注入 X-Trim-Isadmin: true、
+#                      X-Trim-Userid: 1000、X-Trim-Username: <账号>（见 /app/zterm/api/whoami）。
+#                      soft  = 有标记就必须是管理员，没标记则放行（换网关版本头名变了才用）
 
 LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
 PID_FILE="${TRIM_PKGVAR}/zterm.pid"
@@ -54,7 +54,7 @@ start_app() {
   fi
   log_msg "启动 zterm…"
   rm -f "$SOCKET_PATH"
-  ZTERM_ADMIN_MODE="${ZTERM_ADMIN_MODE:-soft}" \
+  ZTERM_ADMIN_MODE="${ZTERM_ADMIN_MODE:-strict}" \
     "$BIN" -data "$DATA_DIR" -socket "$SOCKET_PATH" -prefix "$GATEWAY_PREFIX" \
     >> "$LOG_FILE" 2>&1 &
   echo "$!" > "$PID_FILE"

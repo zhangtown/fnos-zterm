@@ -124,14 +124,16 @@ WebSocket 协议（客户端 → 服务端，文本帧）：
 - **应用以 root 跑**（`install_type=root`），所以本地 shell 会话就是 **NAS 上的 root shell**，
   能读写任何文件。这是"管理员终端"的常规形态，但你要清楚这一点。
 - **可见性只靠飞牛自己的管理员判定**：普通账号看不到图标，访问 `/app/zterm/` 也会被挡。
-- `ZTERM_ADMIN_MODE` 控制后端校验强度，写在 `cmd/main` 里：
-  - `soft`（默认）：请求里带管理员标记就必须是管理员；**没带标记则放行**。
-    网关若换了头名不会把应用锁死，代价是理论上绕开网关直连 socket 就没有管理员校验。
-  - `strict`：必须显式拿到管理员标记，否则 403。**核实过头名之后再切**：
-    管理员登录后打开 `/app/zterm/api/whoami`，看回显里到底有哪些 `X-Trim-*` 头，
-    再把 `cmd/main` 里 `ZTERM_ADMIN_MODE` 的默认值改成 `strict` 重新打包。
-    启动日志里也会留一行提示，列出当前试过的头名。
-  - `off`：不校验（只在自己完全可控的环境里用）。
+- `ZTERM_ADMIN_MODE` 控制后端校验强度（默认 **`strict`**，`cmd/main` 里也显式写死）：
+  - **逐路径的卡法与不卡**：`/api/health` 免鉴权（安装脚本要在无头环境下 curl 它）；
+    静态界面资源（HTML/JS/CSS）不卡（里面没有任何秘密）；**其余 `/api/*` 与 WebSocket 逐个判管理员**。
+  - **`strict`（默认）**：请求必须带上真值的管理员标记，否则 403。
+    已在飞牛 **1.2.0701** 上核实网关注入的就是这几个头：
+    `X-Trim-Isadmin: true`（判定依据）、`X-Trim-Userid: 1000`（数据隔离目录名）、`X-Trim-Username: <账号>`。
+    核对方法是管理员登录后打开 `/app/zterm/api/whoami`。
+    代价：**绕过网关直连 socket 的请求会被全部挡掉**（包括你自己的调试 curl——要带上 `-H X-Trim-Isadmin:true`）。
+  - `soft`：有标记就必须是管理员，**没标记则放行**。换网关版本、头名变了导致应用被锁死时改这个。
+  - `off`：不校验，**只在本机开发时用**（见文末本地开发）。
 - 同账号最多 8 个并发会话（`internal/session` 里的 `MaxPerUID`），每个会话滚动历史 512KB（`NewManager(scrollbackKB)`）。
 - 只要 PTY 里还有东西活着（shell 没退出），会话就一直保留——**不会因为你关掉浏览器就被回收**；
   命令退出后它的记录与最后一段输出再留 10 分钟（`Retain`）供回看，然后清掉。
@@ -141,11 +143,14 @@ WebSocket 协议（客户端 → 服务端，文本帧）：
 ## 六、自检与排错
 
 ```bash
-# 端到端（不用浏览器）：建会话 → WS 连接 → 输入回显 → resize → 断开重连拿回历史 → 删会话
+# 端到端（不用浏览器）：管理员校验（无头/非管理员→403）→ 建会话 → WS → 输入回显
+#                  → resize → 断开重连拿回历史 → 删会话
+# 脚本会自带网关注入的那几个身份头；要改身份传 ZTERM_TEST_UID / ZTERM_TEST_USER / ZTERM_TEST_ADMIN
 ssh -p 2288 -i ~/.ssh/yourkey user@your-nas 'python3 -' < deploy/fnos-app/e2e-ws.py
 
-# 手动看后端
+# 手动看后端（strict 下带头的才能过）
 ssh ... 'curl -s --unix-socket /var/apps/zterm/target/app.sock http://localhost/api/health'
+ssh ... 'curl -s -H X-Trim-Isadmin:true --unix-socket /var/apps/zterm/target/app.sock http://localhost/api/sessions'
 ```
 
 常见现象：
@@ -157,6 +162,7 @@ ssh ... 'curl -s --unix-socket /var/apps/zterm/target/app.sock http://localhost/
 | 装完版本号没变 | 你用了 `install-fpk`，它对已安装应用是空操作，改用 `install.sh` |
 | 桌面看不到图标 | 只有管理员可见；普通账号看不到是正常的。管理员登录后刷新一下桌面 |
 | 会话一刷新就没了 | 后端在重启（`ctl_stop=true` 时升级/停止会结束全部会话）；看 lifecyle 日志的启动时间 |
+| 界面出来了但接口全 403 | 网关没把身份头透传过来（或被普通账号打开）。打开 `/app/zterm/api/whoami` 看 `adminSrc` 是空的吗；应急可先把 `cmd/main` 里 `ZTERM_ADMIN_MODE` 改回 `soft` 重新打包 |
 | 粘贴不了 / 移动端没方向键 | 移动端用底部按键条；桌面端用 Ctrl+Shift+V 或右键粘贴 |
 
 ---
@@ -165,7 +171,8 @@ ssh ... 'curl -s --unix-socket /var/apps/zterm/target/app.sock http://localhost/
 
 ```bash
 # 后端（Windows 上直接跑，PTY 走 conpty/其它实现）
-go run ./cmd/zterm -addr 127.0.0.1:7791 -data /tmp/zterm-dev -ui webui
+# 直连端口没有网关身份头，strict 下会被 403，所以开发时显式关掉校验：
+ZTERM_ADMIN_MODE=off go run ./cmd/zterm -addr 127.0.0.1:7791 -data /tmp/zterm-dev -ui webui
 
 # 前端热更新（vite 代理到上面的后端）
 cd webui && npm install && npm run dev

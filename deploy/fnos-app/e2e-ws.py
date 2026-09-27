@@ -2,7 +2,7 @@
 """zterm 端到端自检：直连 unix socket，不开浏览器就把整条链路跑一遍。
 用法（从开发机）：ssh <nas> python3 - < deploy/fnos-app/e2e-ws.py
 检查项：建会话 → WS 连上拿到初始画面 → 输入命令回显 → resize 生效（stty size）→
-        断开重连仍能拿到滚动历史（会话保活）→ 删会话。
+        断开重连仍能拿到滚动历史（会话保活）→ 删会话；另含管理员校验（无身份头/非管理员 → 403）。
 只有通过网关的那一跳（外部浏览器 → /app/zterm/）需要人工看一眼，其余都在这里覆盖。
 """
 import base64
@@ -16,6 +16,14 @@ import time
 SOCK = os.environ.get("ZTERM_SOCK", "/var/apps/zterm/target/app.sock")
 FAIL = []
 
+# 飞牛网关注入的身份头（本机直连 socket 自检时得自己补上，否则 strict 策略下会被 403）：
+# 实测就是 X-Trim-Isadmin / X-Trim-Userid / X-Trim-Username。
+IDENT = {
+    "X-Trim-Isadmin": os.environ.get("ZTERM_TEST_ADMIN", "true"),
+    "X-Trim-Userid": os.environ.get("ZTERM_TEST_UID", "1000"),
+    "X-Trim-Username": os.environ.get("ZTERM_TEST_USER", "selfcheck"),
+}
+
 
 def ok(cond, label, extra=""):
     print(("  [ok]   " if cond else "  [FAIL] ") + label + (("  " + extra) if extra else ""))
@@ -24,11 +32,15 @@ def ok(cond, label, extra=""):
     return cond
 
 
-def http(method, path, body=None):
+def http(method, path, body=None, ident=True, headers=None):
     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     s.settimeout(10)
     s.connect(SOCK)
     hdr = {"Host": "localhost", "Connection": "close"}
+    if ident:
+        hdr.update(IDENT)
+    if headers:
+        hdr.update(headers)
     if body is not None:
         hdr["Content-Type"] = "application/json"
         hdr["Content-Length"] = str(len(body))
@@ -58,9 +70,12 @@ class WS:
         self.s.settimeout(5)
         self.s.connect(SOCK)
         key = base64.b64encode(os.urandom(16)).decode()
+        ident = "".join(f"{k}: {v}\r\n" for k, v in IDENT.items())
         req = (
             f"GET {path} HTTP/1.1\r\nHost: localhost\r\nUpgrade: websocket\r\n"
-            f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n\r\n"
+            f"Connection: Upgrade\r\nSec-WebSocket-Key: {key}\r\nSec-WebSocket-Version: 13\r\n"
+            + ident
+            + "\r\n"
         )
         self.s.sendall(req.encode())
         buf = b""
@@ -144,6 +159,21 @@ def main():
 
     st, body = http("GET", "/api/health")
     ok(st == 200 and b'"ok":true' in body, "健康检查 /api/health", body[:80].decode(errors="replace"))
+    try:
+        mode = json.loads(body)["adminMode"]
+    except Exception:
+        mode = "?"
+
+    # 管理员校验：strict 下，没有网关身份头的请求（= 绕过网关直连 socket）必须被挡。
+    st2, _ = http("GET", "/api/sessions", ident=False)
+    if mode == "strict":
+        ok(st2 == 403, "strict 策略：无身份头 → 403", f"HTTP {st2}")
+    else:
+        print(f"  [--]   无身份头 → HTTP {st2}（adminMode={mode}，未开启 strict 校验）")
+
+    # 伪造非管理员标记（如普通账号被网关透传 isadmin=false）也必须被挡。
+    st3, _ = http("GET", "/api/sessions", ident=False, headers={"X-Trim-Isadmin": "false", "X-Trim-Userid": "1001"})
+    ok(st3 == 403, "非管理员标记 → 403", f"HTTP {st3}")
 
     st, body = http("POST", "/api/sessions", json.dumps({"kind": "shell", "cols": 100, "rows": 30}).encode())
     ok(st in (200, 201), "新建本地 shell 会话", f"HTTP {st} {body[:120].decode(errors='replace')}")

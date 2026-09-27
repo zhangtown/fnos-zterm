@@ -88,17 +88,20 @@ func (i Identity) SafeUID() string {
 
 // AdminMode 是管理员校验策略。
 //
-//	soft（默认）：网关给了管理员标记就必须是管理员；没给（说明头名不对或直连 socket 调试）则放行
-//	strict     ：必须显式拿到真值的管理员标记，否则 403
-//	off        ：完全不校验（桌面入口 allUsers=false 仍然只有管理员看得见）
+//	strict（默认）：必须显式拿到真值的管理员标记，否则 403
+//	soft         ：网关给了管理员标记就必须是管理员；没给（说明头名不对或直连 socket 调试）则放行
+//	off          ：完全不校验（桌面入口 allUsers=false 仍然只有管理员看得见）
+//
+// 默认取 strict：本应用以 root 跑，放行等于把 NAS 的 root shell 交出去。
+// 本机开发直连端口调试时显式设 ZTERM_ADMIN_MODE=off。
 func AdminMode() string {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv("ZTERM_ADMIN_MODE"))) {
-	case "strict":
-		return "strict"
+	case "soft":
+		return "soft"
 	case "off":
 		return "off"
 	default:
-		return "soft"
+		return "strict"
 	}
 }
 
@@ -120,7 +123,7 @@ func CheckAdmin(r *http.Request) error {
 		}
 		// 头名可能不叫 X-Trim-Isadmin：只在第一次提醒，避免刷屏。
 		warnOnce.Do(func() {
-			log.Printf("提示: 请求里没有管理员标记（已试 %s）；当前策略 soft 放行。请用 /api/whoami 核实实际头名后再决定是否切到 strict", strings.Join(adminHeaders, "/"))
+			log.Printf("提示: 请求里没有管理员标记（已试 %s）；当前策略 soft 放行。生产环境应保持 strict，并用 /api/whoami 核实实际头名", strings.Join(adminHeaders, "/"))
 		})
 		return nil
 	}
