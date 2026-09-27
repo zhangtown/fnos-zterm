@@ -112,6 +112,9 @@ WebSocket 协议（客户端 → 服务端，文本帧）：
 | 程序本体 | `/usr/local/apps/@appcenter/zterm/`（`/var/apps/zterm/target/` 是软链） |
 
 - 数据按**飞牛账号**分目录，升级覆盖不到；`uninstall_callback` 也**不删**数据，想彻底清干净自己删 `data/`。
+- 看运行状态：`sudo /usr/local/bin/appcenter-cli status zterm`（`running` / `stopped`）。
+- 卸载：飞牛应用中心界面上卸（或 `sudo /usr/local/bin/appcenter-cli uninstall` 按提示选 zterm），
+  数据目录会留下，要一并清掉就 `sudo rm -rf /usr/local/apps/@appdata/zterm`。
 - 会话（PTY 与滚动历史）**只在内存里**：应用停止/重启会一起结束。所谓"保活"是指**浏览器侧**断线
   （刷新、切走、锁屏、换网络）不影响它，不跨应用重启。
 - 主机簿**不存密码**。密码/密钥交互交给 ssh 自己在终端里问；要用密钥就走终端里 `ssh` 的默认行为
