@@ -1,0 +1,20 @@
+{
+  "name": "zterm-webui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "zterm 前端：会话侧栏 + xterm 终端 + 主机簿/设置弹窗",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.5"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  ".url": {
+    "zterm.main": {
+      "title": "zterm",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "",
+      "gatewayPrefix": "/app/zterm",
+      "gatewaySocket": "app.sock",
+      "url": "/app/zterm/",
+      "allUsers": false,
+      "control": { "accessPerm": "readonly" }
+    }
+  }
+}

@@ -1,0 +1,127 @@
+#!/bin/sh
+# zterm 的 fnOS 生命周期脚本（无端口内嵌应用）。
+#
+# 二进制只监听 $TRIM_APPDEST/app.sock，飞牛统一网关把 /app/zterm 转发进来；
+# 不占用任何 TCP 端口。会话数据（主机簿、设置、滚动历史）在 $TRIM_PKGVAR/data 下，
+# 按飞牛账号隔离，升级不会覆盖，卸载也不会主动删除。
+#
+# 环境变量：
+#   TRIM_APPDEST       应用程序目录（含 bin/、app.sock）
+#   TRIM_PKGVAR        应用数据目录（跟随卸载策略）
+#   TRIM_TEMP_LOGFILE  应用中心展示给用户看的报错文件
+#   ZTERM_ADMIN_MODE   管理员策略：soft（默认）| strict | off
+#                      soft  = 网关给了管理员标记就必须是管理员，没给则放行（先跑通用这个）
+#                      strict= 必须显式拿到管理员标记，否则 403（核实头名之后再切）
+#                      核实办法：管理员登录飞牛桌面后打开 /app/zterm/api/whoami，
+#                      看回显里到底有没有 X-Trim-Isadmin 这类头。
+
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+PID_FILE="${TRIM_PKGVAR}/zterm.pid"
+BIN="${TRIM_APPDEST}/bin/zterm"
+SOCKET_PATH="${TRIM_APPDEST}/app.sock"
+DATA_DIR="${TRIM_PKGVAR}/data"
+GATEWAY_PREFIX="/app/zterm"
+
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+
+check_process() {
+  kill -0 "$1" 2>/dev/null
+}
+
+status_app() {
+  if [ -f "$PID_FILE" ]; then
+    pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+    if [ -n "$pid" ] && check_process "$pid"; then
+      return 0
+    fi
+    rm -f "$PID_FILE"
+  fi
+  return 1
+}
+
+start_app() {
+  if status_app; then
+    log_msg "已在运行，跳过启动"
+    return 0
+  fi
+  mkdir -p "$DATA_DIR" 2>/dev/null
+  if [ ! -x "$BIN" ]; then
+    log_msg "ERROR: 找不到可执行文件或没有执行权限: $BIN"
+    echo "zterm 可执行文件缺失：$BIN" > "$TRIM_TEMP_LOGFILE" 2>/dev/null
+    exit 1
+  fi
+  log_msg "启动 zterm…"
+  rm -f "$SOCKET_PATH"
+  ZTERM_ADMIN_MODE="${ZTERM_ADMIN_MODE:-soft}" \
+    "$BIN" -data "$DATA_DIR" -socket "$SOCKET_PATH" -prefix "$GATEWAY_PREFIX" \
+    >> "$LOG_FILE" 2>&1 &
+  echo "$!" > "$PID_FILE"
+  # 必须等 socket 文件出现再退出：网关要靠它注册路由，进程活着但 socket 没建好
+  # 在应用中心看来就是"启动失败 / 桌面点开一片空白"。
+  i=0
+  while [ ! -S "$SOCKET_PATH" ] && [ "$i" -lt 50 ]; do
+    i=$((i + 1))
+    sleep 0.2
+  done
+  if [ ! -S "$SOCKET_PATH" ]; then
+    log_msg "ERROR: socket 未创建，启动失败"
+    echo "zterm 启动失败：socket 未创建（详见 $LOG_FILE）" > "$TRIM_TEMP_LOGFILE" 2>/dev/null
+    exit 1
+  fi
+  # 网关以另一个用户身份连 socket，权限不够会表现为"点开是空白页"。
+  chmod 666 "$SOCKET_PATH" 2>/dev/null
+  log_msg "已启动 pid=$(cat "$PID_FILE")"
+}
+
+stop_app() {
+  log_msg "停止 zterm…"
+  if [ ! -f "$PID_FILE" ]; then
+    rm -f "$SOCKET_PATH"
+    return 0
+  fi
+  pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+  if [ -z "$pid" ] || ! check_process "$pid"; then
+    rm -f "$PID_FILE"
+    rm -f "$SOCKET_PATH"
+    return 0
+  fi
+  # 只 TERM 主进程：它会先关掉所有 PTY（会话随之结束）再退出，
+  # 这样不会留下还挂在 PTY 上的孤儿 shell。
+  kill -TERM "$pid" 2>> "$LOG_FILE" || true
+  count=0
+  while check_process "$pid" && [ "$count" -lt 10 ]; do
+    sleep 1
+    count=$((count + 1))
+  done
+  if check_process "$pid"; then
+    kill -KILL "$pid" 2>> "$LOG_FILE" || true
+  fi
+  rm -f "$PID_FILE"
+  rm -f "$SOCKET_PATH"
+  log_msg "已停止"
+}
+
+case "$1" in
+  start)
+    start_app
+    ;;
+  stop)
+    stop_app
+    ;;
+  restart)
+    stop_app
+    start_app
+    ;;
+  status)
+    if status_app; then
+      exit 0
+    fi
+    exit 3
+    ;;
+  *)
+    echo "未知命令: $1" > "$TRIM_TEMP_LOGFILE" 2>/dev/null
+    exit 1
+    ;;
+esac

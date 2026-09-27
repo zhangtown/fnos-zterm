@@ -1,0 +1,8 @@
+#!/bin/sh
+# 升级前（no-op）：数据目录不在应用目录内，升级不会覆盖。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "upgrade_init"
+exit 0

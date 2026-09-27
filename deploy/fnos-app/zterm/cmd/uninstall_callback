@@ -1,0 +1,8 @@
+#!/bin/sh
+# 卸载后：主机簿与设置保留在数据目录，需要彻底清除请自行删除。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "uninstall_callback: 数据保留在 ${TRIM_PKGVAR}/data（含主机簿与设置）"
+exit 0

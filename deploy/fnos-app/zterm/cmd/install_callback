@@ -1,0 +1,10 @@
+#!/bin/sh
+# 安装后：准备数据目录、给二进制可执行位。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+mkdir -p "${TRIM_PKGVAR}/data" 2>/dev/null
+chmod +x "${TRIM_APPDEST}/bin/zterm" 2>/dev/null
+log_msg "install_callback: 数据目录 ${TRIM_PKGVAR}/data"
+exit 0

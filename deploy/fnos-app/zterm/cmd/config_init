@@ -1,0 +1,8 @@
+#!/bin/sh
+# 应用设置入口（本应用没有向导项，no-op）。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "config_init"
+exit 0

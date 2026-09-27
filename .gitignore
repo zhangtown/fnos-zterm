@@ -1,0 +1,19 @@
+# 本机 NAS 连接信息（含账号/端口/密钥路径）
+deploy/fnos-app/nas.env
+
+# 打包工具与产物
+.toolchain/
+*.fpk
+
+# 前端依赖（npm install 还原）
+webui/node_modules/
+
+# 由 pack.sh 生成
+deploy/fnos-app/zterm/app/bin/
+deploy/fnos-app/zterm/ICON.PNG
+deploy/fnos-app/zterm/ICON_256.PNG
+deploy/fnos-app/zterm/app/ui/images/
+
+# 本机调试数据
+/tmp/
+*.log

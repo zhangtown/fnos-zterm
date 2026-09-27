@@ -1,0 +1,8 @@
+#!/bin/sh
+# 设置保存后（no-op）：终端设置按账号存在 /data/users/<uid>/ 下。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "config_callback"
+exit 0

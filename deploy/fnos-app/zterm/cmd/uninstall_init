@@ -1,0 +1,8 @@
+#!/bin/sh
+# 卸载前：会话随进程结束，数据保留。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "uninstall_init"
+exit 0

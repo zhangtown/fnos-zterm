@@ -1,0 +1,8 @@
+#!/bin/sh
+# 安装前：只记日志（数据目录交给 install_callback 准备）。
+LOG_FILE="${TRIM_PKGVAR}/lifecycle.log"
+log_msg() {
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $1" >> "$LOG_FILE" 2>/dev/null
+}
+log_msg "install_init"
+exit 0
