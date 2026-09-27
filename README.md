@@ -301,6 +301,10 @@ git tag v0.1.2 && git push origin v0.1.2
 所以记得把 manifest 里的 `version=` 也提到同一个号，否则本地构建出来的还是旧版本号。
 也可以在 Actions 页面手动触发 `release` 工作流并填版本号，用于补发或重跑（同名 Release 会覆盖上传）。
 
+> 顺带一个坑：**fnpack 会重写 manifest**——成品包里的 `manifest` 变成了 `key = value`（空格对齐）、
+> CRLF 行尾，还多一行 fnpack 自己算的 `checksum`。所以别把成品包里的 manifest 当源文件，
+> 也别想用手写 tar 代替 fnpack（校验值对不上的包装不进去）。
+
 数据与日志：`/usr/local/apps/@appdata/zterm/data/users/<uid>/`、`.../lifecycle.log`、`.../data/app.log`。
 
 ---

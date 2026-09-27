@@ -85,7 +85,11 @@ jobs:
           tar tzf "$FPK" | grep -qx app.tgz
           tar tzf "$FPK" | grep -qx cmd/main
           ! tar tzf "$FPK" | grep -q '^wizard/'      # 包里不能有 wizard/：非交互安装会先卸载再失败
-          tar xzf "$FPK" -O manifest | grep -qx "version=${{ steps.ver.outputs.version }}"
+          # 注意：fnpack 会重写 manifest（key=value → `key = value`、CRLF 行尾、追加 checksum 行），
+          # 所以这里不能直接用 grep -x 比 "version=0.1.1"。
+          tar xzf "$FPK" -O manifest | tr -d '\r' \
+            | grep -qE "^version[[:space:]]*=[[:space:]]*${{ steps.ver.outputs.version }}$"
+          tar xzf "$FPK" -O manifest | tr -d '\r' | grep -E '^(appname|version|checksum)'
           ls -lh "$FPK"
 
       - name: 发布 Release
