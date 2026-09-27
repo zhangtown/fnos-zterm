@@ -35,7 +35,20 @@
 
 ## 快速开始
 
-### 方式 A：从源码打包安装（推荐，一条命令）
+### 方式 A：下载现成的 fpk（最快）
+
+打开 [Releases](https://github.com/zhangtown/fnos-zterm/releases) 下载最新 `zterm.fpk`，然后：
+
+```bash
+scp zterm.fpk user@your-nas:/tmp/
+ssh user@your-nas
+mkdir -p ~/zterm-pkg && tar xzf /tmp/zterm.fpk -C ~/zterm-pkg
+sudo /usr/local/bin/appcenter-cli install-local -d ~/zterm-pkg -v 1   # 1 = 装到哪个存储卷
+```
+
+升级同理（重新下载 → 再跑一遍 `install-local`）。**不要用 `install-fpk`**，原因见下面的坑。
+
+### 方式 B：从源码打包安装（开发者）
 
 前置：**Go ≥ 1.23**（`go.mod` 声明，本项目只依赖 `creack/pty` 与 `gorilla/websocket`）、
 **Node ≥ 20.19**（vite 7 要求；已有 `internal/webui/dist` 时可用 `SKIP_UI=1` 跳过前端构建）、
@@ -62,19 +75,14 @@ bash deploy/fnos-app/install.sh
 装完飞牛桌面就会出现「zterm」图标。想只打包不装：`bash deploy/fnos-app/pack.sh`，
 产物在 `deploy/fnos-app/zterm.fpk`（可以直接拿去应用中心手动装）。
 
-### 方式 B：手动安装现成的 fpk
-
-```bash
-scp deploy/fnos-app/zterm.fpk user@your-nas:/tmp/
-ssh user@your-nas
-mkdir -p ~/zterm-pkg && tar xzf /tmp/zterm.fpk -C ~/zterm-pkg
-sudo /usr/local/bin/appcenter-cli install-local -d ~/zterm-pkg -v 1   # 1 = 装到哪个存储卷
-```
-
 > ⚠️ **两个必须知道的坑**（都是实测踩出来的）
 > 1. **`appcenter-cli install-fpk` 对已安装的同名应用是空操作**——哪怕包里版本号更高，
 >    它也只打印 `Application [zterm] is installed.`，一个字节都不换。升级必须用 `install-local`。
 > 2. **包里不能有 `wizard/` 目录**——非交互安装遇到向导变量会*先卸载再失败*，等于把装好的应用搞掉。
+
+---
+
+**为什么推荐从 Releases 装？** 别人不用装 Go/Node/fnpack——仓库里打 tag 就会自动构建出 fpk（见 [.github/workflows/release.yml](.github/workflows/release.yml)）。
 
 ---
 
@@ -279,7 +287,19 @@ deploy/fnos-app/zterm/       飞牛应用包本体：manifest、cmd/*（生命�
 deploy/fnos-app/pack.sh      打包（图标 → 前端 → linux/amd64 交叉编译 → .fpk）
 deploy/fnos-app/install.sh   一键部署 + 自检
 deploy/fnos-app/e2e-ws.py    端到端自检（直连 socket，不用浏览器）
+.github/workflows/release.yml  打 tag 自动构建 fpk 并发 Release
 ```
+
+### 发版（维护者）
+
+```bash
+# tag 即发版：Actions 自动跑 前端构建 → 交叉编译 → fnpack 打包 → 上传 fpk 到 Release
+git tag v0.1.2 && git push origin v0.1.2
+```
+
+版本号**以 tag 为准**（工作流会把 `deploy/fnos-app/zterm/manifest` 改成 tag 的值再打包），
+所以记得把 manifest 里的 `version=` 也提到同一个号，否则本地构建出来的还是旧版本号。
+也可以在 Actions 页面手动触发 `release` 工作流并填版本号，用于补发或重跑（同名 Release 会覆盖上传）。
 
 数据与日志：`/usr/local/apps/@appdata/zterm/data/users/<uid>/`、`.../lifecycle.log`、`.../data/app.log`。
 
@@ -287,4 +307,4 @@ deploy/fnos-app/e2e-ws.py    端到端自检（直连 socket，不用浏览器�
 
 ## License
 
-尚未指定（如需开源许可，建议 MIT）。欢迎提 Issue / PR。
+[MIT](LICENSE) © 2026 zhangtown。欢迎提 Issue / PR。

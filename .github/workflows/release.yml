@@ -1,0 +1,107 @@
+name: release
+
+# 打 tag（v0.1.2）即发版：构建前端 → 交叉编译 → fnpack 打包 → 把 zterm.fpk 传到 Release。
+# 也可以手动触发（workflow_dispatch）并指定版本号，用来补发或重跑。
+#
+# 版本号来源：tag 去掉前缀 v。若 tag 与 deploy/fnos-app/zterm/manifest 里的 version 不一致，
+# **以 tag 为准**（工作流里会把 manifest 改成 tag 的值再打包），所以本地构建看到的是 main 上的版本。
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "版本号，形如 0.1.2"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # --generate-notes 需要历史与 tag
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: webui/package-lock.json
+
+      - name: 解析版本号
+        id: ver
+        run: |
+          set -e
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            V="${{ inputs.version }}"
+          else
+            V="${GITHUB_REF_NAME#v}"
+          fi
+          case "$V" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *) echo "版本号格式不对：$V（应为 x.y.z）"; exit 1 ;;
+          esac
+          sed -i "s/^version=.*/version=$V/" deploy/fnos-app/zterm/manifest
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=v$V"       >> "$GITHUB_OUTPUT"
+          echo "版本：$V"
+
+      - name: 装 fnpack（飞牛官方打包工具）
+        run: |
+          set -e
+          curl -fsSL -o fnpack https://static2.fnnas.com/fnpack/fnpack-1.2.3-linux-amd64
+          chmod +x fnpack
+          ./fnpack 2>&1 | head -5 || true
+
+      - name: 装前端依赖
+        working-directory: webui
+        run: npm ci
+
+      - name: 静态检查
+        run: |
+          go vet ./...
+          go build -o /dev/null ./cmd/zterm
+
+      - name: 打包 fpk
+        env:
+          FNPACK: ${{ github.workspace }}/fnpack
+        run: bash deploy/fnos-app/pack.sh
+
+      - name: 校验产物
+        run: |
+          set -e
+          FPK=deploy/fnos-app/zterm.fpk
+          test -f "$FPK"
+          tar tzf "$FPK" | grep -qx manifest
+          tar tzf "$FPK" | grep -qx app.tgz
+          tar tzf "$FPK" | grep -qx cmd/main
+          ! tar tzf "$FPK" | grep -q '^wizard/'      # 包里不能有 wizard/：非交互安装会先卸载再失败
+          tar xzf "$FPK" -O manifest | grep -qx "version=${{ steps.ver.outputs.version }}"
+          ls -lh "$FPK"
+
+      - name: 发布 Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -e
+          FPK=deploy/fnos-app/zterm.fpk
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG 已存在，覆盖上传"
+            gh release upload "$TAG" "$FPK" --clobber
+          else
+            gh release create "$TAG" "$FPK" \
+              --title "zterm $VERSION" \
+              --notes "飞牛 fnOS 终端应用。安装见 [README](../../blob/main/README.md#快速开始)。" \
+              --generate-notes
+          fi
