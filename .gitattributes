@@ -1,0 +1,7 @@
+# 一律 LF：飞牛包里的 cmd/* 是 Linux 上直接执行的脚本，
+# 一旦被检出成 CRLF，#!/bin/sh 会变成 "bad interpreter"，且报错很难指向根因。
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.fpk binary
+*.exe binary
