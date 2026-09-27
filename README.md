@@ -50,7 +50,8 @@ sudo /usr/local/bin/appcenter-cli install-local -d ~/zterm-pkg -v 1   # 1 = 装�
 
 ### 方式 B：从源码打包安装（开发者）
 
-前置：**Go ≥ 1.23**（`go.mod` 声明，本项目只依赖 `creack/pty` 与 `gorilla/websocket`）、
+前置：**Go ≥ 1.27**（`go.mod` 声明，本项目只依赖 `creack/pty` 与 `gorilla/websocket`；
+CI 发布的包就是按 go.mod 里的版本构建的，老版本 Go 会自动下载对应工具链）、
 **Node ≥ 20.19**（vite 7 要求；已有 `internal/webui/dist` 时可用 `SKIP_UI=1` 跳过前端构建）、
 **[fnpack](https://static2.fnnas.com/fnpack/)**（飞牛官方打包工具，放到 `.toolchain/fnpack/`）。
 `zterm` 本体是**纯 Go + 前端静态文件**，无运行时依赖，NAS 上什么都不用装。
